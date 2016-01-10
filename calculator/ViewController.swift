@@ -19,7 +19,6 @@ class ViewController: UIViewController {
     
     var userIsInTheMiddleOfTypingANumber = false
     var displayValueIsOnlyADecimalPoint = false
-    var operationCompleted = false
     
     let pi = M_PI
 
@@ -49,7 +48,7 @@ class ViewController: UIViewController {
                     displayValue = 0
                 }
             }
-            history.text = brain.showHistory()
+            history.text = brain.description
         }
     }
     
@@ -58,43 +57,41 @@ class ViewController: UIViewController {
             enter()
         }
         if !displayValueIsOnlyADecimalPoint{
-            operationCompleted = true
             if let operation = sender.currentTitle{
                 if let result = brain.performOperation(operation){
                     displayValue = result
                     
                 }else{
-                    displayValue = 0
+                    displayValue = nil
                 }
             }
-            history.text = brain.showHistory()
-            operationCompleted = false
+            history.text = "=" + brain.description
         }
     }
     
     @IBAction func changeSign(sender: UIButton) {
         if userIsInTheMiddleOfTypingANumber{
             let originalDisplay = display.text!
-            displayValue = -1 * displayValue
-            userIsInTheMiddleOfTypingANumber = true
-            //some hack code
-            //check number has no decimal points and no decimal values
-            //deals with float created when multiplying by 1
-            if displayValue % 1 == 0{
-                if originalDisplay.rangeOfString(".") == nil{dropLastCharacterOfDisplayText()}
-                display.text = String(display.text!.characters.dropLast())
+            if let displayVal = displayValue{
+                displayValue = -1 * displayVal
+                userIsInTheMiddleOfTypingANumber = true
+                //some hack code
+                //check number has no decimal points and no decimal values
+                //deals with float created when multiplying by 1
+                if displayVal % 1 == 0{
+                    if originalDisplay.rangeOfString(".") == nil{dropLastCharacterOfDisplayText()}
+                    display.text = String(display.text!.characters.dropLast())
+                }
+
             }
-            
-            
         }else{
             if let operation = sender.currentTitle{
-                operationCompleted = true
                 if let result = brain.performOperation(operation){
                     displayValue = result
                 }else{
-                    displayValue = 0
+                    displayValue = nil
                 }
-                operationCompleted = false
+                history.text = "=" + brain.description
             }
         }
     }
@@ -103,26 +100,74 @@ class ViewController: UIViewController {
         display.text = String(display.text!.characters.dropLast())
     }
     
+    var displayValue:Double? {
+        get{
+            if let text = display.text{
+                return NSNumberFormatter().numberFromString(text)!.doubleValue
+            }else{
+                return nil
+            }
+        }
+        set{
+            if let newVal = newValue{
+                display.text = "\(newVal)"
+                userIsInTheMiddleOfTypingANumber = false
+            }else{
+                display.text = " "
+            }
+        }
+    }
+    
     @IBAction func enter() {
         if display.text! == "." {
             displayValueIsOnlyADecimalPoint = true
         }else{
             displayValueIsOnlyADecimalPoint = false
             userIsInTheMiddleOfTypingANumber = false
-            if let result = brain.pushOperand(displayValue){
-                displayValue = result
-            }else{
-                displayValue = 0
+            if let displayVal = displayValue{
+                if let result = brain.pushOperand(displayVal){
+                    displayValue = result
+                }
             }
-            history.text = brain.showHistory()
+            else{
+                displayValue = nil
+            }
+            history.text = "=" + brain.description
         }
     }
-    @IBAction func backspace() {
+    
+    @IBAction func setMemory() {
+        if let displayVal = displayValue{
+            brain.variables["M"] = displayVal
+        }
+        if let result = brain.evaluate(){
+            displayValue = result
+        }else{
+            displayValue = nil
+        }
+        userIsInTheMiddleOfTypingANumber = false
+    }
+    
+    @IBAction func getMemory() {
+        if let result = brain.pushOperand("M"){
+            displayValue = result
+        }
+    }
+    
+    @IBAction func undo() {
         if userIsInTheMiddleOfTypingANumber{
             display.text = String(display.text!.characters.dropLast())
             if display.text!.characters.count == 0{
                 display.text = "0"
                 userIsInTheMiddleOfTypingANumber = false
+            }
+        }else{
+            brain.removeLastOp()
+            history.text = brain.description
+            if let result = brain.evaluate(){
+                displayValue = result
+            }else{
+                displayValue = nil
             }
         }
     }
@@ -130,25 +175,11 @@ class ViewController: UIViewController {
     @IBAction func clear() {
         userIsInTheMiddleOfTypingANumber = false
         displayValueIsOnlyADecimalPoint = false
-        operationCompleted = false
         display.text = "0"
         history.text = ""
         
-        brain.clear()
-    }
-    
-    var displayValue:Double {
-        get{
-            return NSNumberFormatter().numberFromString(display.text!)!.doubleValue
-        }
-        set{
-            if operationCompleted == true{
-                display.text = "=\(newValue)"
-            }else{
-                display.text = "\(newValue)"
-            }
-            userIsInTheMiddleOfTypingANumber = false
-        }
+        brain.clearStack()
+        brain.clearVariables()
     }
 
 }

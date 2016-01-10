@@ -14,6 +14,7 @@ class CalculatorBrain{
     
     private enum Op: CustomStringConvertible {
         case Operand(Double)
+        case Variable(String)
         case Constant(String, Double)
         case UnaryOperation(String, Double -> Double)
         case BinaryOperation(String, (Double, Double) -> Double)
@@ -23,6 +24,8 @@ class CalculatorBrain{
                 switch self{
                 case .Operand(let operand):
                     return "\(operand)"
+                case .Variable(let variable):
+                    return "\(variable)"
                 case .Constant(let constant, _):
                     return constant
                 case .UnaryOperation(let symbol, _):
@@ -37,6 +40,11 @@ class CalculatorBrain{
     private var opStack = [Op]()
     
     private var knownOps = [String: Op]()
+    var variables = [String: Double]()
+    
+    var description: String{
+        get{ return showHistory(opStack).result }
+    }
     
     init(){
         func learnOp (op:Op){
@@ -61,6 +69,8 @@ class CalculatorBrain{
             switch op{
             case .Operand(let operand):
                 return (operand, remainingOps)
+            case .Variable(let variableValue):
+                return (variables[variableValue], remainingOps)
             case .Constant(_, let constant):
                 return (constant, remainingOps)
             case .UnaryOperation(_, let operation):
@@ -94,6 +104,11 @@ class CalculatorBrain{
         return evaluate()
     }
     
+    func pushOperand(symbol: String) -> Double?{
+        opStack.append(Op.Variable(symbol))
+        return evaluate()
+    }
+    
     func performOperation(symbol: String) -> Double?{
         if let operation = knownOps[symbol]{
             opStack.append(operation)
@@ -101,11 +116,22 @@ class CalculatorBrain{
         return evaluate()
     }
     
-    func clear(){
+    func removeLastOp(){
+        if !opStack.isEmpty{
+            opStack.removeLast()
+        }
+    }
+    
+    func clearVariables(){
+        variables = [String: Double]()
+    }
+    
+    func clearStack(){
         opStack = [Op]()
     }
     
-    private func showHistory(ops: [Op]) -> (result: String?, remainingOps: [Op]){
+    //this is not quite working
+    private func showHistory(ops: [Op]) -> (result: String, remainingOps: [Op]){
         if !ops.isEmpty{
             var remainingOps = ops
             let op = remainingOps.removeLast()
@@ -114,28 +140,17 @@ class CalculatorBrain{
                 return ("\(operand)", remainingOps)
             case .Constant(let constant, _):
                 return ("\(constant)", remainingOps)
+            case .Variable(let variable):
+                return ("\(variable)", remainingOps)
             case .UnaryOperation(let operation, _):
                 let operandEvaluation = showHistory(remainingOps)
-                if let remainingHistory = operandEvaluation.result{
-                    return (operation + "(" + remainingHistory + ")" , remainingOps)
-                }
+                return (operation + "(" + operandEvaluation.result + ")" , remainingOps)
             case .BinaryOperation(let operation, _):
-                let op1Evaluation = showHistory(remainingOps)
-                if let operand1 = op1Evaluation.result{
-                    let op2Evaluation = showHistory(op1Evaluation.remainingOps)
-                    if let operand2 = op2Evaluation.result{
-                        return ("(\(operand1)\(operation)\(operand2))", op2Evaluation.remainingOps)
-                    }
-                }
-                return (operation, ops)
+                let operand1Evaluation = showHistory(remainingOps)
+                let operand2Evaluation = showHistory(operand1Evaluation.remainingOps)
+                return ("(\(operand2Evaluation.result)\(operation)\(operand1Evaluation.result))", operand2Evaluation.remainingOps)
             }
         }
-        return (nil, ops)
-    }
-    
-    func showHistory() -> String?{
-        let (result, _) = showHistory(opStack)
-        print(result)
-        return result
+        return ("?", ops)
     }
 }
